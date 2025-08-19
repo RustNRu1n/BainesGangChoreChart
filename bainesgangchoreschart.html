@@ -156,6 +156,9 @@
                 </thead>
                 <tbody id="chore-list-body" class="divide-y divide-gray-200">
                     <!-- Chores will be populated here by JavaScript -->
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-gray-500">Loading chores...</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -283,6 +286,8 @@
                 }
             }, error => {
                 console.error("Error listening to Firestore updates:", error);
+                // Display error to the user if the listener fails
+                showModal("Failed to connect to the database. Please check your network and try again.");
             });
         }
 
@@ -538,4 +543,3 @@
 
 </body>
 </html>
-
