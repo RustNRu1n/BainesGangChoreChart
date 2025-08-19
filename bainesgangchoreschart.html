@@ -112,9 +112,9 @@
 <body>
 
     <!-- The message modal -->
-    <div id="message-modal" class="modal">
+    <div id="message-modal" class="modal" aria-modal="true" role="dialog">
         <div class="modal-content">
-            <span class="close-button" onclick="closeModal()">&times;</span>
+            <span class="close-button" id="close-modal-btn">&times;</span>
             <p id="modal-message"></p>
         </div>
     </div>
@@ -211,7 +211,7 @@
         let db;
         let auth;
 
-        // Message Modal Functions
+        // Modal Functions (external event binding)
         function showModal(message) {
             document.getElementById('modal-message').textContent = message;
             document.getElementById('message-modal').style.display = 'block';
@@ -222,6 +222,10 @@
             document.getElementById('message-modal').style.display = 'none';
         }
         
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('close-modal-btn').addEventListener('click', closeModal);
+        });
+
         // Helper function to calculate total points for a parent chore from its sub-chores
         function getParentChorePoints(parentChoreId) {
             const parentChore = chores.find(c => c.id === parentChoreId);
@@ -264,9 +268,12 @@
             { id: "choose_movie_for_night", name: "Choose Family Movie Night", cost: 60, type: "shared" }
         ];
 
+        // Store Firestore collection path as a constant for DRY code
+        const FIRESTORE_PATH = `/artifacts/${appId}/public/data/chore_data`;
+
         // This function sets up the real-time data listener from Firestore.
         function setupRealtimeListeners() {
-            const docRef = db.collection(`/artifacts/${appId}/public/data/chore_data`).doc("shared_data");
+            const docRef = db.collection(FIRESTORE_PATH).doc("shared_data");
             
             docRef.onSnapshot(docSnap => {
                 if (docSnap.exists) {
@@ -291,10 +298,87 @@
             });
         }
 
+        // Only update the affected row instead of full DOM redraw (partial optimization)
+        function updateChoreRow(chore, data, choreListBody) {
+            const choreStatus = data.chores[chore.id] || { killianCompleted: false, kieranCompleted: false };
+            const row = document.createElement('tr');
+            
+            if (chore.isParent) {
+                row.classList.add('parent-chore-row');
+                const allSubChoreIds = chores.find(c => c.id === chore.id).subChoreIds;
+                const killianAllCompleted = allSubChoreIds.every(subId => data.chores[subId]?.killianCompleted);
+                const kieranAllCompleted = allSubChoreIds.every(subId => data.chores[subId]?.kieranCompleted);
+
+                if (killianAllCompleted && kieranAllCompleted) {
+                    row.classList.add('chore-completed');
+                } else {
+                    row.classList.remove('chore-completed');
+                }
+
+                let parentEmoji = '⭐';
+                let emojiClass = '';
+
+                if (chore.id === "dishwasher") {
+                    parentEmoji = '🍽️';
+                    emojiClass = 'sparkle-emoji';
+                } else if (chore.id === "bathroom") {
+                    parentEmoji = '🚽';
+                    emojiClass = 'sparkle-emoji';
+                }
+
+                row.innerHTML = `
+                    <td class="py-4 px-4 whitespace-nowrap ${killianAllCompleted && kieranAllCompleted ? 'chore-name-completed' : ''}">${chore.name}</td>
+                    <td class="py-4 px-4 whitespace-nowrap font-medium text-green-600">${getParentChorePoints(chore.id)}</td>
+                    <td class="py-4 px-4 whitespace-nowrap text-center boy1-cell">
+                        <span class="${emojiClass}">${killianAllCompleted ? parentEmoji : ''}</span>
+                    </td>
+                    <td class="py-4 px-4 whitespace-nowrap text-center boy2-cell">
+                        <span class="${emojiClass}">${kieranAllCompleted ? parentEmoji : ''}</span>
+                    </td>
+                `;
+            } else {
+                if (chore.parentId) {
+                    row.classList.add('sub-chore-row');
+                }
+                
+                const killianIsCompleted = choreStatus.killianCompleted;
+                const kieranIsCompleted = choreStatus.kieranCompleted;
+
+                if (killianIsCompleted && kieranIsCompleted) {
+                    row.classList.add('chore-completed');
+                } else {
+                    row.classList.remove('chore-completed');
+                }
+
+                // Accessibility: Each checkbox is wrapped in a label
+                const killianCellContent = `
+                    <label class="flex items-center justify-center space-x-2" aria-label="Killian: ${chore.name}">
+                        <input type="checkbox" data-chore-id="${chore.id}" data-boy="killian" class="h-5 w-5 rounded text-blue-600 focus:ring-blue-500" ${killianIsCompleted ? 'checked' : ''}>
+                        ${chore.id === 'poop_scoop' && killianIsCompleted ? '<span class="sparkle-emoji">💩</span>' : ''}
+                    </label>
+                `;
+
+                const kieranCellContent = `
+                    <label class="flex items-center justify-center space-x-2" aria-label="Kieran: ${chore.name}">
+                        <input type="checkbox" data-chore-id="${chore.id}" data-boy="kieran" class="h-5 w-5 rounded text-orange-600 focus:ring-orange-500" ${kieranIsCompleted ? 'checked' : ''}>
+                        ${chore.id === 'poop_scoop' && kieranIsCompleted ? '<span class="sparkle-emoji">💩</span>' : ''}
+                    </label>
+                `;
+
+                row.innerHTML = `
+                    <td class="py-4 px-4 whitespace-nowrap ${killianIsCompleted && kieranIsCompleted ? 'chore-name-completed' : ''}">${chore.name}</td>
+                    <td class="py-4 px-4 whitespace-nowrap font-medium text-green-600">${chore.points}</td>
+                    <td class="py-4 px-4 whitespace-nowrap text-center boy1-cell">${killianCellContent}</td>
+                    <td class="py-4 px-4 whitespace-nowrap text-center boy2-cell">${kieranCellContent}</td>
+                `;
+            }
+            choreListBody.appendChild(row);
+        }
+
         // This function updates the UI with the data from Firestore.
         function updateUI(data) {
-            const killianPoints = data.killianPoints || 0;
-            const kieranPoints = data.kieranPoints || 0;
+            const killianPoints = Math.max(0, Math.round(data.killianPoints || 0));
+            const kieranPoints = Math.max(0, Math.round(data.kieranPoints || 0));
             const familyPoints = killianPoints + kieranPoints;
 
             document.getElementById('killian-points').textContent = killianPoints;
@@ -306,87 +390,12 @@
             
             // Loop through chores to render the list
             chores.forEach(chore => {
-                const choreStatus = data.chores[chore.id] || { killianCompleted: false, kieranCompleted: false };
-                const row = document.createElement('tr');
-                
-                // Set class based on chore type
-                if (chore.isParent) {
-                    row.classList.add('parent-chore-row');
-                    // Check if all sub-chores are completed to determine parent chore status
-                    const allSubChoreIds = chores.find(c => c.id === chore.id).subChoreIds;
-                    const killianAllCompleted = allSubChoreIds.every(subId => data.chores[subId]?.killianCompleted);
-                    const kieranAllCompleted = allSubChoreIds.every(subId => data.chores[subId]?.kieranCompleted);
+                updateChoreRow(chore, data, choreListBody);
+            });
 
-                    if (killianAllCompleted && kieranAllCompleted) {
-                         row.classList.add('chore-completed');
-                    } else {
-                         row.classList.remove('chore-completed');
-                    }
-                    
-                    let parentEmoji = '⭐';
-                    let emojiClass = '';
-
-                    if (chore.id === "dishwasher") {
-                        parentEmoji = '🍽️';
-                        emojiClass = 'sparkle-emoji';
-                    } else if (chore.id === "bathroom") {
-                        parentEmoji = '🚽';
-                        emojiClass = 'sparkle-emoji';
-                    }
-
-                    row.innerHTML = `
-                        <td class="py-4 px-4 whitespace-nowrap ${killianAllCompleted && kieranAllCompleted ? 'chore-name-completed' : ''}">${chore.name}</td>
-                        <td class="py-4 px-4 whitespace-nowrap font-medium text-green-600">${getParentChorePoints(chore.id)}</td>
-                        <td class="py-4 px-4 whitespace-nowrap text-center boy1-cell">
-                            <span class="${emojiClass}">${killianAllCompleted ? parentEmoji : ''}</span>
-                        </td>
-                        <td class="py-4 px-4 whitespace-nowrap text-center boy2-cell">
-                            <span class="${emojiClass}">${kieranAllCompleted ? parentEmoji : ''}</span>
-                        </td>
-                    `;
-
-                } else {
-                    // This is a sub-chore or a regular chore
-                    if (chore.parentId) {
-                        row.classList.add('sub-chore-row');
-                    }
-                    
-                    const killianIsCompleted = choreStatus.killianCompleted;
-                    const kieranIsCompleted = choreStatus.kieranCompleted;
-                    
-                    if (killianIsCompleted && kieranIsCompleted) {
-                         row.classList.add('chore-completed');
-                    } else {
-                         row.classList.remove('chore-completed');
-                    }
-                    
-                    // Conditionally render the special layout for poop emoji, otherwise use a default layout
-                    const killianCellContent = `
-                        <div class="flex items-center justify-center space-x-2">
-                            <input type="checkbox" data-chore-id="${chore.id}" data-boy="killian" class="h-5 w-5 rounded text-blue-600 focus:ring-blue-500" ${killianIsCompleted ? 'checked' : ''}>
-                            ${chore.id === 'poop_scoop' && killianIsCompleted ? '<span class="sparkle-emoji">💩</span>' : ''}
-                        </div>
-                    `;
-
-                    const kieranCellContent = `
-                        <div class="flex items-center justify-center space-x-2">
-                            <input type="checkbox" data-chore-id="${chore.id}" data-boy="kieran" class="h-5 w-5 rounded text-orange-600 focus:ring-orange-500" ${kieranIsCompleted ? 'checked' : ''}>
-                            ${chore.id === 'poop_scoop' && kieranIsCompleted ? '<span class="sparkle-emoji">💩</span>' : ''}
-                        </div>
-                    `;
-
-                    row.innerHTML = `
-                        <td class="py-4 px-4 whitespace-nowrap ${killianIsCompleted && kieranIsCompleted ? 'chore-name-completed' : ''}">${chore.name}</td>
-                        <td class="py-4 px-4 whitespace-nowrap font-medium text-green-600">${chore.points}</td>
-                        <td class="py-4 px-4 whitespace-nowrap text-center boy1-cell">${killianCellContent}</td>
-                        <td class="py-4 px-4 whitespace-nowrap text-center boy2-cell">${kieranCellContent}</td>
-                    `;
-                    const checkboxes = row.querySelectorAll('input[type="checkbox"]');
-                    checkboxes.forEach(checkbox => {
-                        checkbox.addEventListener('change', (e) => handleChoreUpdate(e.target));
-                    });
-                }
-                choreListBody.appendChild(row);
+            // Attach event listeners to all checkboxes
+            choreListBody.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', handleChoreUpdate);
             });
 
             // Update individual rewards list
@@ -398,11 +407,18 @@
                     <td class="py-4 px-4 whitespace-nowrap">${reward.name}</td>
                     <td class="py-4 px-4 whitespace-nowrap text-center font-medium text-red-600">${reward.cost}</td>
                     <td class="py-4 px-4 whitespace-nowrap text-center">
-                        <button onclick="handleRedeem('killian', '${reward.id}')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200">Killian</button>
-                        <button onclick="handleRedeem('kieran', '${reward.id}')" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200 ml-2">Kieran</button>
+                        <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200" data-boy="killian" data-reward-id="${reward.id}">Killian</button>
+                        <button class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200 ml-2" data-boy="kieran" data-reward-id="${reward.id}">Kieran</button>
                     </td>
                 `;
                 individualRewardListBody.appendChild(row);
+            });
+
+            // Attach event listeners to reward buttons
+            individualRewardListBody.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    handleRedeem(this.dataset.boy, this.dataset.rewardId);
+                });
             });
 
             // Update shared rewards list
@@ -414,21 +430,28 @@
                     <td class="py-4 px-4 whitespace-nowrap">${reward.name}</td>
                     <td class="py-4 px-4 whitespace-nowrap text-center font-medium text-red-600">${reward.cost}</td>
                     <td class="py-4 px-4 whitespace-nowrap text-center">
-                        <button onclick="handleRedeem('family', '${reward.id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200">Redeem</button>
+                        <button class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200" data-boy="family" data-reward-id="${reward.id}">Redeem</button>
                     </td>
                 `;
                 sharedRewardListBody.appendChild(row);
             });
+
+            sharedRewardListBody.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    handleRedeem(this.dataset.boy, this.dataset.rewardId);
+                });
+            });
         }
         
         // Function to update the chore status in Firestore
-        async function handleChoreUpdate(checkbox) {
+        async function handleChoreUpdate(e) {
+            const checkbox = e.target;
             const choreId = checkbox.dataset.choreId;
             const boy = checkbox.dataset.boy;
             const isChecked = checkbox.checked;
             
             try {
-                const docRef = db.collection(`/artifacts/${appId}/public/data/chore_data`).doc("shared_data");
+                const docRef = db.collection(FIRESTORE_PATH).doc("shared_data");
                 const docSnap = await docRef.get();
                 if (docSnap.exists) {
                     const data = docSnap.data();
@@ -445,10 +468,17 @@
 
                     // Update points based on the chore's individual point value
                     const points = choreData.points;
-                    if (boy === 'killian') {
-                        data.killianPoints += isChecked ? points : -points;
-                    } else {
-                        data.kieranPoints += isChecked ? points : -points;
+                    if (typeof points === 'number') {
+                        if (boy === 'killian') {
+                            // Prevent negative points
+                            data.killianPoints = isChecked
+                                ? Math.max(0, data.killianPoints + points)
+                                : Math.max(0, data.killianPoints - points);
+                        } else {
+                            data.kieranPoints = isChecked
+                                ? Math.max(0, data.kieranPoints + points)
+                                : Math.max(0, data.kieranPoints - points);
+                        }
                     }
                     
                     await docRef.set(data);
@@ -462,7 +492,7 @@
         // Function to handle reward redemption
         async function handleRedeem(boy, rewardId) {
             try {
-                const docRef = db.collection(`/artifacts/${appId}/public/data/chore_data`).doc("shared_data");
+                const docRef = db.collection(FIRESTORE_PATH).doc("shared_data");
                 const docSnap = await docRef.get();
                 
                 if (docSnap.exists) {
@@ -478,9 +508,9 @@
                         const points = boy === 'killian' ? data.killianPoints : data.kieranPoints;
                         if (points >= reward.cost) {
                             if (boy === 'killian') {
-                                data.killianPoints -= reward.cost;
+                                data.killianPoints = Math.max(0, data.killianPoints - reward.cost);
                             } else {
-                                data.kieranPoints -= reward.cost;
+                                data.kieranPoints = Math.max(0, data.kieranPoints - reward.cost);
                             }
                             await docRef.set(data);
                             showModal(`Success! ${boy.charAt(0).toUpperCase() + boy.slice(1)} has redeemed "${reward.name}" for ${reward.cost} points.`);
@@ -493,12 +523,12 @@
                             const killianPoints = data.killianPoints;
                             const kieranPoints = data.kieranPoints;
                             
-                            // Proportional deduction
-                            const killianShare = (killianPoints / familyPoints) * reward.cost;
-                            const kieranShare = (kieranPoints / familyPoints) * reward.cost;
+                            // Proportional deduction, rounded to avoid fractional points
+                            let killianShare = Math.round((killianPoints / familyPoints) * reward.cost);
+                            let kieranShare = reward.cost - killianShare; // ensure total equals cost
 
-                            data.killianPoints -= killianShare;
-                            data.kieranPoints -= kieranShare;
+                            data.killianPoints = Math.max(0, killianPoints - killianShare);
+                            data.kieranPoints = Math.max(0, kieranPoints - kieranShare);
                             
                             await docRef.set(data);
                             showModal(`Success! The family has redeemed "${reward.name}" for ${reward.cost} shared points.`);
@@ -528,10 +558,6 @@
                 
                 // Set up the real-time listener for the chore data
                 setupRealtimeListeners();
-                
-                // Make handleRedeem available globally for onclick events
-                window.handleRedeem = handleRedeem;
-                window.closeModal = closeModal;
             } catch (error) {
                 console.error("Initialization failed: ", error);
                 showModal("Failed to load the app. Please try again later.");
