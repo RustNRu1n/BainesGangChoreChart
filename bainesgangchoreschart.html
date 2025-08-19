@@ -194,11 +194,12 @@
         </div>
     </div>
     
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
+    <!-- Include Firebase core libraries -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <script>
         // Global variables provided by the environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
@@ -261,11 +262,11 @@
         ];
 
         // This function sets up the real-time data listener from Firestore.
-        async function setupRealtimeListeners(userId) {
-            const docRef = doc(db, `/artifacts/${appId}/public/data/chore_data`, "shared_data");
+        function setupRealtimeListeners() {
+            const docRef = db.collection(`/artifacts/${appId}/public/data/chore_data`).doc("shared_data");
             
-            onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
+            docRef.onSnapshot(docSnap => {
+                if (docSnap.exists) {
                     const data = docSnap.data();
                     updateUI(data);
                 } else {
@@ -278,9 +279,9 @@
                             return acc;
                         }, {})
                     };
-                    setDoc(docRef, initialData);
+                    docRef.set(initialData);
                 }
-            }, (error) => {
+            }, error => {
                 console.error("Error listening to Firestore updates:", error);
             });
         }
@@ -420,11 +421,11 @@
             const choreId = checkbox.dataset.choreId;
             const boy = checkbox.dataset.boy;
             const isChecked = checkbox.checked;
-
+            
             try {
-                const docRef = doc(db, `/artifacts/${appId}/public/data/chore_data`, "shared_data");
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
+                const docRef = db.collection(`/artifacts/${appId}/public/data/chore_data`).doc("shared_data");
+                const docSnap = await docRef.get();
+                if (docSnap.exists) {
                     const data = docSnap.data();
                     const choreData = chores.find(c => c.id === choreId);
                     const currentChoreStatus = data.chores[choreId] || {};
@@ -445,7 +446,7 @@
                         data.kieranPoints += isChecked ? points : -points;
                     }
                     
-                    await setDoc(docRef, data);
+                    await docRef.set(data);
                 }
             } catch (e) {
                 console.error("Error updating chore status: ", e);
@@ -456,10 +457,10 @@
         // Function to handle reward redemption
         async function handleRedeem(boy, rewardId) {
             try {
-                const docRef = doc(db, `/artifacts/${appId}/public/data/chore_data`, "shared_data");
-                const docSnap = await getDoc(docRef);
+                const docRef = db.collection(`/artifacts/${appId}/public/data/chore_data`).doc("shared_data");
+                const docSnap = await docRef.get();
                 
-                if (docSnap.exists()) {
+                if (docSnap.exists) {
                     const data = docSnap.data();
                     const reward = rewards.find(r => r.id === rewardId);
                     
@@ -476,7 +477,7 @@
                             } else {
                                 data.kieranPoints -= reward.cost;
                             }
-                            await setDoc(docRef, data);
+                            await docRef.set(data);
                             showModal(`Success! ${boy.charAt(0).toUpperCase() + boy.slice(1)} has redeemed "${reward.name}" for ${reward.cost} points.`);
                         } else {
                             showModal(`Not enough points! ${boy.charAt(0).toUpperCase() + boy.slice(1)} needs ${reward.cost} points.`);
@@ -494,7 +495,7 @@
                             data.killianPoints -= killianShare;
                             data.kieranPoints -= kieranShare;
                             
-                            await setDoc(docRef, data);
+                            await docRef.set(data);
                             showModal(`Success! The family has redeemed "${reward.name}" for ${reward.cost} shared points.`);
                         } else {
                             showModal(`The family needs ${reward.cost} shared points to redeem "${reward.name}". You only have ${familyPoints} points.`);
@@ -510,26 +511,24 @@
         // This is the main function to initialize the app
         async function initializeAppAndAuth() {
             try {
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+                const app = firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                auth = firebase.auth();
                 
                 if (authToken) {
-                    await signInWithCustomToken(auth, authToken);
+                    await auth.signInWithCustomToken(authToken);
                 } else {
-                    await signInAnonymously(auth);
+                    await auth.signInAnonymously();
                 }
                 
-                const userId = auth.currentUser.uid;
-                
                 // Set up the real-time listener for the chore data
-                await setupRealtimeListeners(userId);
+                setupRealtimeListeners();
                 
                 // Make handleRedeem available globally for onclick events
                 window.handleRedeem = handleRedeem;
                 window.closeModal = closeModal;
             } catch (error) {
-                console.error("Initialization failed: ", e);
+                console.error("Initialization failed: ", error);
                 showModal("Failed to load the app. Please try again later.");
             }
         }
