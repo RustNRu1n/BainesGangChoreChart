@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Chore & Rewards Chart</title>
+    <!-- 
+      For production, build Tailwind as a CSS file and link it here.
+      For demo/testing, CDN is fine.
+      Replace the following line with a <link rel="stylesheet" href="tailwind.css"> for production.
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #374151;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+        }
+        .boy1-cell { background-color: #bfdbfe; }
+        .boy2-cell { background-color: #fed7aa; }
+        .parent-chore-row { font-weight: 600; }
+        .sub-chore-row { padding-left: 2rem; background-color: #f9fafb; }
+        .points-display { font-size: 1.5rem; font-weight: 600; padding: 0.5rem 1rem; border-radius: 0.5rem; text-align: center; transition: all 0.3s ease; }
+        .chore-completed { background-color: #d1fae5; }
+        .chore-name-completed { text-decoration: line-through; color: #6b7280; }
+        .modal { display: none; position: fixed; z-index: 10; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 10px; text-align: center; }
+        .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close-button:hover, .close-button:focus { color: black; text-decoration: none; cursor: pointer; }
+        .sparkle-emoji { font-size: 1.5rem; animation: sparkle 1.5s infinite ease-in-out; text-shadow: 0 0 5px #fde047, 0 0 10px #fde047, 0 0 15px #fde047; }
+        @keyframes sparkle { 0%, 100% { transform: scale(1); filter: brightness(100%); } 50% { transform: scale(1.1); filter: brightness(150%); } }
+    </style>
+</head>
+<body>
+
+<!-- ADD YOUR FIREBASE CONFIG HERE! -->
+<script>
+window.__firebase_config = JSON.stringify({
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+});
+// Optional: window.__app_id = "BainesGang"; (or your custom app id)
+</script>
+
+    <div id="message-modal" class="modal" aria-modal="true" role="dialog">
+        <div class="modal-content">
+            <span class="close-button" id="close-modal-btn">&times;</span>
+            <p id="modal-message"></p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1 class="text-4xl font-extrabold text-center mb-6 text-gray-900">Family Chore Chart</h1>
+        <p class="text-sm text-gray-500 text-center mb-4">
+            User ID: <span class="font-mono text-gray-700">Baines Gang</span>
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            <div class="flex flex-col items-center p-4 bg-blue-100 rounded-xl shadow-lg">
+                <h2 class="text-xl font-bold text-blue-800">Killian's Points</h2>
+                <div id="killian-points" class="points-display text-blue-800">0</div>
+            </div>
+            <div class="flex flex-col items-center p-4 bg-orange-100 rounded-xl shadow-lg">
+                <h2 class="text-xl font-bold text-orange-800">Kieran's Points</h2>
+                <div id="kieran-points" class="points-display text-orange-800">0</div>
+            </div>
+            <div class="flex flex-col items-center p-4 bg-green-100 rounded-xl shadow-lg">
+                <h2 class="text-xl font-bold text-green-800">Family Points</h2>
+                <div id="family-points" class="points-display text-green-800">0</div>
+            </div>
+        </div>
+        <div class="overflow-x-auto rounded-lg shadow-lg">
+            <table class="min-w-full bg-white border border-gray-200">
+                <thead class="bg-gray-100 border-b-2 border-gray-300">
+                    <tr>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Chore</th>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Points</th>
+                        <th class="py-3 px-4 text-center text-sm font-semibold text-gray-600 uppercase tracking-wider boy1-cell rounded-tr-lg">Killian</th>
+                        <th class="py-3 px-4 text-center text-sm font-semibold text-gray-600 uppercase tracking-wider boy2-cell rounded-tr-lg">Kieran</th>
+                    </tr>
+                </thead>
+                <tbody id="chore-list-body" class="divide-y divide-gray-200">
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-gray-500">Loading chores...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <h2 class="text-3xl font-extrabold text-center mt-12 mb-6 text-gray-900">Individual Rewards</h2>
+        <div class="rounded-lg shadow-lg overflow-hidden mb-8">
+            <table class="min-w-full bg-white border border-gray-200">
+                <thead class="bg-gray-100 border-b-2 border-gray-300">
+                    <tr>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Reward</th>
+                        <th class="py-3 px-4 text-center text-sm font-semibold text-gray-600 uppercase tracking-wider">Cost (Points)</th>
+                        <th class="py-3 px-4 text-center text-sm font-semibold text-gray-600 uppercase tracking-wider">Redeem</th>
+                    </tr>
+                </thead>
+                <tbody id="individual-reward-list-body" class="divide-y divide-gray-200"></tbody>
+            </table>
+        </div>
+        <h2 class="text-3xl font-extrabold text-center mt-12 mb-6 text-gray-900">Family Rewards</h2>
+        <div class="rounded-lg shadow-lg overflow-hidden">
+            <table class="min-w-full bg-white border border-gray-200">
+                <thead class="bg-gray-100 border-b-2 border-gray-300">
+                    <tr>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Reward</th>
+                        <th class="py-3 px-4 text-center text-sm font-semibold text-gray-600 uppercase tracking-wider">Cost (Family Points)</th>
+                        <th class="py-3 px-4 text-center text-sm font-semibold text-gray-600 uppercase tracking-wider">Redeem</th>
+                    </tr>
+                </thead>
+                <tbody id="shared-reward-list-body" class="divide-y divide-gray-200"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <!-- Include the app JS inline for now -->
+    <script>
+    // ... [The script body is unchanged from the previous fixed version; see prior answers for details]
+    // Please copy the full working script provided in the previous message or from your repo.
+    </script>
+</body>
+</html>
