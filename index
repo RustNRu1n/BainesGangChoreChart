@@ -4,11 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Family Chore & Rewards Chart</title>
-    <!-- 
-      For production, build Tailwind as a CSS file and link it here.
-      For demo/testing, CDN is fine.
-      Replace the following line with a <link rel="stylesheet" href="tailwind.css"> for production.
-    -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -22,6 +17,7 @@
             min-height: 100vh;
             padding: 1rem;
         }
+
         .container {
             max-width: 900px;
             width: 100%;
@@ -30,35 +26,90 @@
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             padding: 2rem;
         }
+        
+        /* Custom colors for the boys */
         .boy1-cell { background-color: #bfdbfe; }
         .boy2-cell { background-color: #fed7aa; }
-        .parent-chore-row { font-weight: 600; }
-        .sub-chore-row { padding-left: 2rem; background-color: #f9fafb; }
-        .points-display { font-size: 1.5rem; font-weight: 600; padding: 0.5rem 1rem; border-radius: 0.5rem; text-align: center; transition: all 0.3s ease; }
-        .chore-completed { background-color: #d1fae5; }
-        .chore-name-completed { text-decoration: line-through; color: #6b7280; }
-        .modal { display: none; position: fixed; z-index: 10; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
-        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 10px; text-align: center; }
-        .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
-        .close-button:hover, .close-button:focus { color: black; text-decoration: none; cursor: pointer; }
-        .sparkle-emoji { font-size: 1.5rem; animation: sparkle 1.5s infinite ease-in-out; text-shadow: 0 0 5px #fde047, 0 0 10px #fde047, 0 0 15px #fde047; }
-        @keyframes sparkle { 0%, 100% { transform: scale(1); filter: brightness(100%); } 50% { transform: scale(1.1); filter: brightness(150%); } }
+
+        /* Styles for the main and sub-chores */
+        .parent-chore-row {
+            font-weight: 600;
+        }
+        .sub-chore-row {
+            padding-left: 2rem;
+            background-color: #f9fafb;
+        }
+        
+        .points-display {
+            font-size: 1.5rem;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .chore-completed {
+            background-color: #d1fae5;
+        }
+        
+        .chore-name-completed {
+            text-decoration: line-through;
+            color: #6b7280;
+        }
+
+        /* Modal styling */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 400px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Sparkle animation for emojis */
+        .sparkle-emoji {
+            font-size: 1.5rem;
+            animation: sparkle 1.5s infinite ease-in-out;
+            text-shadow: 0 0 5px #fde047, 0 0 10px #fde047, 0 0 15px #fde047;
+        }
+
+        @keyframes sparkle {
+            0%, 100% { transform: scale(1); filter: brightness(100%); }
+            50% { transform: scale(1.1); filter: brightness(150%); }
+        }
     </style>
 </head>
 <body>
-
-<!-- ADD YOUR FIREBASE CONFIG HERE! -->
-<script>
-window.__firebase_config = JSON.stringify({
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-});
-// Optional: window.__app_id = "BainesGang"; (or your custom app id)
-</script>
 
     <div id="message-modal" class="modal" aria-modal="true" role="dialog">
         <div class="modal-content">
@@ -136,10 +187,345 @@ window.__firebase_config = JSON.stringify({
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     
-    <!-- Include the app JS inline for now -->
     <script>
-    // ... [The script body is unchanged from the previous fixed version; see prior answers for details]
-    // Please copy the full working script provided in the previous message or from your repo.
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db;
+        let auth;
+
+        // Message Modal Functions
+        function showModal(message) {
+            document.getElementById('modal-message').textContent = message;
+            document.getElementById('message-modal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('modal-message').textContent = '';
+            document.getElementById('message-modal').style.display = 'none';
+        }
+
+        document.getElementById('close-modal-btn').addEventListener('click', closeModal);
+
+        // Helper function to calculate total points for a parent chore from its sub-chores
+        function getParentChorePoints(parentChoreId) {
+            const parentChore = chores.find(c => c.id === parentChoreId);
+            if (!parentChore || !parentChore.isParent) {
+                return 0;
+            }
+            return parentChore.subChoreIds.reduce((total, subId) => {
+                const subChore = chores.find(c => c.id === subId);
+                return total + (subChore ? subChore.points : 0);
+            }, 0);
+        }
+
+        // Chore and Reward data structure.
+        const chores = [
+            { id: "clean_room", name: "Clean Room", isParent: true, subChoreIds: ["clean_room_bedding", "clean_room_books", "clean_room_laundry", "clean_room_stuffies", "clean_room_toys"] },
+            { id: "clean_room_bedding", name: "Bedding", points: 5, parentId: "clean_room" },
+            { id: "clean_room_books", name: "Books", points: 5, parentId: "clean_room" },
+            { id: "clean_room_laundry", name: "Laundry", points: 5, parentId: "clean_room" },
+            { id: "clean_room_stuffies", name: "Stuffies", points: 5, parentId: "clean_room" },
+            { id: "clean_room_toys", name: "Toys", points: 5, parentId: "clean_room" },
+            { id: "dishwasher", name: "Dishwasher", isParent: true, subChoreIds: ["dishwasher_top", "dishwasher_bottom", "dishwasher_silverware", "dishwasher_nodirty"] },
+            { id: "dishwasher_top", name: "Top", points: 5, parentId: "dishwasher" },
+            { id: "dishwasher_bottom", name: "Bottom", points: 5, parentId: "dishwasher" },
+            { id: "dishwasher_silverware", name: "Silverware", points: 5, parentId: "dishwasher" },
+            { id: "dishwasher_nodirty", name: "No Dirty", points: 10, parentId: "dishwasher" },
+            { id: "poop_scoop", name: "Poop Scoop", points: 20 },
+            { id: "bathroom", name: "Bathroom", isParent: true, subChoreIds: ["bathroom_floor", "bathroom_mirror_sink", "bathroom_toilet", "bathroom_tub"] },
+            { id: "bathroom_floor", name: "Floor", points: 5, parentId: "bathroom" },
+            { id: "bathroom_mirror_sink", name: "Mirror and Sink", points: 10, parentId: "bathroom" },
+            { id: "bathroom_toilet", name: "Toilet", points: 5, parentId: "bathroom" },
+            { id: "bathroom_tub", name: "Tub", points: 5, parentId: "bathroom" }
+        ];
+
+        const rewards = [
+            { id: "extra_screen_time", name: "30 Minutes Extra Screen Time", cost: 50, type: "individual" },
+            { id: "dessert_of_choice", name: "Dessert of Choice", cost: 100, type: "individual" },
+            { id: "date_with_parent", name: "Date With Mom/Dad", cost: 400, type: "individual" },
+            { id: "go_out_for_ice_cream", name: "Go Out for Ice Cream", cost: 120, type: "shared" },
+            { id: "go_mini_golfing", name: "Go Mini Golfing", cost: 800, type: "shared" },
+            { id: "choose_movie_for_night", name: "Choose Family Movie Night", cost: 60, type: "shared" }
+        ];
+
+        // This function sets up the real-time data listener from Firestore.
+        function setupRealtimeListeners() {
+            const docRef = db.collection(`/artifacts/${appId}/public/data/chore_data`).doc("shared_data");
+            
+            docRef.onSnapshot(docSnap => {
+                if (docSnap.exists) {
+                    const data = docSnap.data();
+                    updateUI(data);
+                } else {
+                    console.log("No data found, creating initial document.");
+                    const initialData = {
+                        killianPoints: 0,
+                        kieranPoints: 0,
+                        chores: chores.reduce((acc, chore) => {
+                            acc[chore.id] = { killianCompleted: false, kieranCompleted: false };
+                            return acc;
+                        }, {})
+                    };
+                    docRef.set(initialData);
+                }
+            }, error => {
+                console.error("Error listening to Firestore updates:", error);
+                // Display error to the user if the listener fails
+                showModal("Failed to connect to the database. Please check your network and try again.");
+            });
+        }
+
+        // This function updates the UI with the data from Firestore.
+        function updateUI(data) {
+            const killianPoints = data.killianPoints || 0;
+            const kieranPoints = data.kieranPoints || 0;
+            const familyPoints = killianPoints + kieranPoints;
+
+            document.getElementById('killian-points').textContent = killianPoints;
+            document.getElementById('kieran-points').textContent = kieranPoints;
+            document.getElementById('family-points').textContent = familyPoints;
+
+            const choreListBody = document.getElementById('chore-list-body');
+            choreListBody.innerHTML = '';
+            
+            // Loop through chores to render the list
+            chores.forEach(chore => {
+                const choreStatus = data.chores[chore.id] || { killianCompleted: false, kieranCompleted: false };
+                const row = document.createElement('tr');
+                
+                // Set class based on chore type
+                if (chore.isParent) {
+                    row.classList.add('parent-chore-row');
+                    // Check if all sub-chores are completed to determine parent chore status
+                    const allSubChoreIds = chores.find(c => c.id === chore.id).subChoreIds;
+                    const killianAllCompleted = allSubChoreIds.every(subId => data.chores[subId]?.killianCompleted);
+                    const kieranAllCompleted = allSubChoreIds.every(subId => data.chores[subId]?.kieranCompleted);
+
+                    if (killianAllCompleted && kieranAllCompleted) {
+                         row.classList.add('chore-completed');
+                    } else {
+                         row.classList.remove('chore-completed');
+                    }
+                    
+                    let parentEmoji = '⭐';
+                    let emojiClass = '';
+
+                    if (chore.id === "dishwasher") {
+                        parentEmoji = '🍽️';
+                        emojiClass = 'sparkle-emoji';
+                    } else if (chore.id === "bathroom") {
+                        parentEmoji = '🚽';
+                        emojiClass = 'sparkle-emoji';
+                    }
+
+                    row.innerHTML = `
+                        <td class="py-4 px-4 whitespace-nowrap ${killianAllCompleted && kieranAllCompleted ? 'chore-name-completed' : ''}">${chore.name}</td>
+                        <td class="py-4 px-4 whitespace-nowrap font-medium text-green-600">${getParentChorePoints(chore.id)}</td>
+                        <td class="py-4 px-4 whitespace-nowrap text-center boy1-cell">
+                            <span class="${emojiClass}">${killianAllCompleted ? parentEmoji : ''}</span>
+                        </td>
+                        <td class="py-4 px-4 whitespace-nowrap text-center boy2-cell">
+                            <span class="${emojiClass}">${kieranAllCompleted ? parentEmoji : ''}</span>
+                        </td>
+                    `;
+
+                } else {
+                    // This is a sub-chore or a regular chore
+                    if (chore.parentId) {
+                        row.classList.add('sub-chore-row');
+                    }
+                    
+                    const killianIsCompleted = choreStatus.killianCompleted;
+                    const kieranIsCompleted = choreStatus.kieranCompleted;
+                    
+                    if (killianIsCompleted && kieranIsCompleted) {
+                         row.classList.add('chore-completed');
+                    } else {
+                         row.classList.remove('chore-completed');
+                    }
+                    
+                    // Conditionally render the special layout for poop emoji, otherwise use a default layout
+                    const killianCellContent = `
+                        <div class="flex items-center justify-center space-x-2">
+                            <input type="checkbox" data-chore-id="${chore.id}" data-boy="killian" class="h-5 w-5 rounded text-blue-600 focus:ring-blue-500" ${killianIsCompleted ? 'checked' : ''}>
+                            ${chore.id === 'poop_scoop' && killianIsCompleted ? '<span class="sparkle-emoji">💩</span>' : ''}
+                        </div>
+                    `;
+
+                    const kieranCellContent = `
+                        <div class="flex items-center justify-center space-x-2">
+                            <input type="checkbox" data-chore-id="${chore.id}" data-boy="kieran" class="h-5 w-5 rounded text-orange-600 focus:ring-orange-500" ${kieranIsCompleted ? 'checked' : ''}>
+                            ${chore.id === 'poop_scoop' && kieranIsCompleted ? '<span class="sparkle-emoji">💩</span>' : ''}
+                        </div>
+                    `;
+
+                    row.innerHTML = `
+                        <td class="py-4 px-4 whitespace-nowrap ${killianIsCompleted && kieranIsCompleted ? 'chore-name-completed' : ''}">${chore.name}</td>
+                        <td class="py-4 px-4 whitespace-nowrap font-medium text-green-600">${chore.points}</td>
+                        <td class="py-4 px-4 whitespace-nowrap text-center boy1-cell">${killianCellContent}</td>
+                        <td class="py-4 px-4 whitespace-nowrap text-center boy2-cell">${kieranCellContent}</td>
+                    `;
+                    const checkboxes = row.querySelectorAll('input[type="checkbox"]');
+                    checkboxes.forEach(checkbox => {
+                        checkbox.addEventListener('change', (e) => handleChoreUpdate(e.target));
+                    });
+                }
+                choreListBody.appendChild(row);
+            });
+
+            // Update individual rewards list
+            const individualRewardListBody = document.getElementById('individual-reward-list-body');
+            individualRewardListBody.innerHTML = '';
+            rewards.filter(r => r.type === 'individual').forEach(reward => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="py-4 px-4 whitespace-nowrap">${reward.name}</td>
+                    <td class="py-4 px-4 whitespace-nowrap text-center font-medium text-red-600">${reward.cost}</td>
+                    <td class="py-4 px-4 whitespace-nowrap text-center">
+                        <button onclick="handleRedeem('killian', '${reward.id}')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200">Killian</button>
+                        <button onclick="handleRedeem('kieran', '${reward.id}')" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200 ml-2">Kieran</button>
+                    </td>
+                `;
+                individualRewardListBody.appendChild(row);
+            });
+
+            // Update shared rewards list
+            const sharedRewardListBody = document.getElementById('shared-reward-list-body');
+            sharedRewardListBody.innerHTML = '';
+            rewards.filter(r => r.type === 'shared').forEach(reward => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="py-4 px-4 whitespace-nowrap">${reward.name}</td>
+                    <td class="py-4 px-4 whitespace-nowrap text-center font-medium text-red-600">${reward.cost}</td>
+                    <td class="py-4 px-4 whitespace-nowrap text-center">
+                        <button onclick="handleRedeem('family', '${reward.id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200">Redeem</button>
+                    </td>
+                `;
+                sharedRewardListBody.appendChild(row);
+            });
+        }
+        
+        // Function to update the chore status in Firestore
+        async function handleChoreUpdate(checkbox) {
+            const choreId = checkbox.dataset.choreId;
+            const boy = checkbox.dataset.boy;
+            const isChecked = checkbox.checked;
+            
+            try {
+                const docRef = db.collection(`/artifacts/${appId}/public/data/chore_data`).doc("shared_data");
+                const docSnap = await docRef.get();
+                if (docSnap.exists) {
+                    const data = docSnap.data();
+                    const choreData = chores.find(c => c.id === choreId);
+                    const currentChoreStatus = data.chores[choreId] || {};
+
+                    // Update the chore's completed status
+                    if (boy === 'killian') {
+                        currentChoreStatus.killianCompleted = isChecked;
+                    } else {
+                        currentChoreStatus.kieranCompleted = isChecked;
+                    }
+                    data.chores[choreId] = currentChoreStatus;
+
+                    // Update points based on the chore's individual point value
+                    const points = choreData.points;
+                    if (boy === 'killian') {
+                        data.killianPoints = Math.max(0, data.killianPoints + (isChecked ? points : -points));
+                    } else {
+                        data.kieranPoints = Math.max(0, data.kieranPoints + (isChecked ? points : -points));
+                    }
+                    
+                    await docRef.set(data);
+                }
+            } catch (e) {
+                console.error("Error updating chore status: ", e);
+                showModal("Failed to update chore status. Please try again.");
+            }
+        }
+
+        // Function to handle reward redemption
+        async function handleRedeem(boy, rewardId) {
+            try {
+                const docRef = db.collection(`/artifacts/${appId}/public/data/chore_data`).doc("shared_data");
+                const docSnap = await docRef.get();
+                
+                if (docSnap.exists) {
+                    const data = docSnap.data();
+                    const reward = rewards.find(r => r.id === rewardId);
+                    
+                    if (!reward) {
+                        showModal("Reward not found!");
+                        return;
+                    }
+                    
+                    if (reward.type === 'individual') {
+                        const points = boy === 'killian' ? data.killianPoints : data.kieranPoints;
+                        if (points >= reward.cost) {
+                            if (boy === 'killian') {
+                                data.killianPoints = Math.max(0, data.killianPoints - reward.cost);
+                            } else {
+                                data.kieranPoints = Math.max(0, data.kieranPoints - reward.cost);
+                            }
+                            await docRef.set(data);
+                            showModal(`Success! ${boy.charAt(0).toUpperCase() + boy.slice(1)} has redeemed "${reward.name}" for ${reward.cost} points.`);
+                        } else {
+                            showModal(`Not enough points! ${boy.charAt(0).toUpperCase() + boy.slice(1)} needs ${reward.cost} points.`);
+                        }
+                    } else if (reward.type === 'shared') {
+                        const familyPoints = data.killianPoints + data.kieranPoints;
+                        if (familyPoints >= reward.cost) {
+                            const killianPoints = data.killianPoints;
+                            const kieranPoints = data.kieranPoints;
+                            
+                            // Proportional deduction
+                            const killianShare = (killianPoints / familyPoints) * reward.cost;
+                            const kieranShare = (kieranPoints / familyPoints) * reward.cost;
+
+                            data.killianPoints = Math.max(0, data.killianPoints - killianShare);
+                            data.kieranPoints = Math.max(0, data.kieranPoints - kieranShare);
+                            
+                            await docRef.set(data);
+                            showModal(`Success! The family has redeemed "${reward.name}" for ${reward.cost} shared points.`);
+                        } else {
+                            showModal(`The family needs ${reward.cost} shared points to redeem "${reward.name}". You only have ${familyPoints} points.`);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Error redeeming reward: ", e);
+                showModal("Failed to redeem reward. Please try again.");
+            }
+        }
+        
+        // This is the main function to initialize the app
+        async function initializeAppAndAuth() {
+            try {
+                const app = firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                auth = firebase.auth();
+                
+                if (authToken) {
+                    await auth.signInWithCustomToken(authToken);
+                } else {
+                    await auth.signInAnonymously();
+                }
+                
+                // Set up the real-time listener for the chore data
+                setupRealtimeListeners();
+                
+                // Make handleRedeem available globally for onclick events
+                window.handleRedeem = handleRedeem;
+                window.closeModal = closeModal;
+            } catch (error) {
+                console.error("Initialization failed: ", error);
+                showModal("Failed to load the app. Please try again later.");
+            }
+        }
+
+        window.onload = initializeAppAndAuth;
     </script>
 </body>
 </html>
